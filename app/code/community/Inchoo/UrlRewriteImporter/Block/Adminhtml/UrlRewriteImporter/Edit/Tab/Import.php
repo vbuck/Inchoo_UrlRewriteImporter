@@ -67,13 +67,61 @@ class Inchoo_UrlRewriteImporter_Block_Adminhtml_UrlRewriteImporter_Edit_Tab_Impo
             'legend' => Mage::helper('customer')->__('CSV File')
         ));
 
-        $csvFileFieldset->addField('file', 'file', array(
+        $->addField('file', 'file', array(
             'name' => 'file',
             'label' => 'File',
             'class' => 'required-entry',
             'required' => true,
             'after_element_html' => '<small>*.csv</small>',
         ));
+
+        $csvFileFieldset->addField(
+            'fields', 
+            'text', 
+            array(
+                'name'  => 'fields',
+                'label' => $this->__('Field Map'),
+                'value' => 'request_path,target_path',
+                'after_element_html' 
+                        => '<small>' . $this->__('Specify each column for import.') . '</small>',
+            )
+        );
+
+        $csvFileFieldset->addField(
+            'store_id', 
+            'text', 
+            array(
+                'name'  => 'store_id',
+                'label' => $this->__('Store ID'),
+                'value' => '',
+                'after_element_html' 
+                        => '<small>' . $this->__('Leave blank to use CSV value or default. Separate multiples with commas.') . '</small>',
+            )
+        );
+
+        $csvFileFieldset->addField(
+            'id_path_pattern', 
+            'text', 
+            array(
+                'name'  => 'id_path_pattern',
+                'label' => $this->__('ID Path Pattern'),
+                'value' => 'custom/{time}/{id}',
+                'after_element_html' 
+                        => '<small>' . $this->__('Leave blank to use CSV value or generate unique paths.') . '</small>',
+            )
+        );
+
+        $csvFileFieldset->addField(
+            'options', 
+            'text', 
+            array(
+                'name'  => 'options',
+                'label' => $this->__('Redirect Options'),
+                'value' => 'RP',
+                'after_element_html' 
+                        => '<small>' . $this->__('Leave blank to use CSV value or default.') . '</small>',
+            )
+        );
 
         $this->setForm($form);
         return $this;

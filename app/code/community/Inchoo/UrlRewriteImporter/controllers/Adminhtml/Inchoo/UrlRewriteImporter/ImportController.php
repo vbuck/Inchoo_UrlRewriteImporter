@@ -9,6 +9,10 @@
  */
 class Inchoo_UrlRewriteImporter_Adminhtml_Inchoo_UrlRewriteImporter_ImportController extends Mage_Adminhtml_Controller_Action {
 
+    protected $_columns     = array();
+    protected $_timestamp   = 0;
+    protected $_currentId   = 0;
+
     protected function _getSession() {
         return Mage::getSingleton('adminhtml/session');
     }
@@ -34,6 +38,71 @@ class Inchoo_UrlRewriteImporter_Adminhtml_Inchoo_UrlRewriteImporter_ImportContro
         return false;
     }
 
+    /**
+     * Get a column index by field name.
+     * 
+     * @param string $column The column field name.
+     * 
+     * @return int|null
+     */
+    protected function _getColumnIndex($column)
+    {
+        if (isset($this->_columns[$column])) {
+            return $this->_columns[$column];
+        }
+
+        return null;
+    }
+
+    /**
+     * Transform the row for ease of import.
+     * 
+     * @param array $row The import row.
+     * 
+     * @return Varien_Object
+     */
+    protected function _prepareRow(array $row)
+    {
+        $idPath     = $this->getRequest()->getParam('id_path_pattern');
+        $options    = $this->getRequest()->getParam('options');
+        $newRow     = array();
+
+        foreach ($this->_columns as $field => $index) {
+            $value = isset($row[$index]) ? $row[$index] : null;
+
+            if ($idPath || $field == 'id_path' && is_null($value)) {
+                $value = $idPath ? $idPath : 'custom/{time}/{id}';
+            }
+
+            if ($field == 'id_path') {
+                $value = str_replace('{time}', $this->_timestamp, $value);
+                $value = str_replace('{id}', $this->_currentId, $value);
+            }
+
+            if ($options || $field == 'options' && is_null($value)) {
+                $value = $options;
+            }
+
+            $newRow[$field] = $value;
+        }
+
+        return new Varien_Object($newRow);
+    }
+
+    /**
+     * Set the column/field map.
+     * 
+     * @param array $columns An array of numerically-indexed columns.
+     *
+     * @return Inchoo_UrlRewriteImporter_Adminhtml_Inchoo_UrlRewriteImporter_ImportController
+     */
+    protected function _setColumns(array $columns = array())
+    {
+        $this->_columns = array_flip($columns);
+
+        return $this;
+    }
+
     public function saveAction() {
         if ($this->getRequest()->isPost()) {
 
@@ -51,11 +120,26 @@ class Inchoo_UrlRewriteImporter_Adminhtml_Inchoo_UrlRewriteImporter_ImportContro
                 return;
             }
 
-            $length = $this->getRequest()->getParam('length', 0);
-            $delimiter = $this->getRequest()->getParam('delimiter', ',');
-            $enclosure = $this->getRequest()->getParam('enclosure', '"');
-            $escape = $this->getRequest()->getParam('escape', '\\');
-            $skipline = $this->getRequest()->getParam('skipline', false);
+            $this->_currentId      = 1;
+            $this->_timestamp   = time();
+
+            $length     = $this->getRequest()->getParam('length', 0);
+            $delimiter  = $this->getRequest()->getParam('delimiter', ',');
+            $enclosure  = $this->getRequest()->getParam('enclosure', '"');
+            $escape     = $this->getRequest()->getParam('escape', '\\');
+            $skipline   = $this->getRequest()->getParam('skipline', false);
+            $stores     = explode(',', ( $this->getRequest()->getParam('store_id') ));
+            $columns    = explode(',', ( $this->getRequest()->getParam('fields') ));
+
+            if (empty($stores)) {
+                $stores = array(0);
+            }
+
+            if (empty($columns)) {
+                $columns = array('store_id', 'id_path', 'request_path', 'target_path', 'options');
+            }
+
+            $this->_setColumns($columns);
 
             $total = 0;
             $totalSuccess = 0;
@@ -65,29 +149,33 @@ class Inchoo_UrlRewriteImporter_Adminhtml_Inchoo_UrlRewriteImporter_ImportContro
                 while (($line = fgetcsv($fp, $length, $delimiter, $enclosure, $escape))) {
 
                     $total++;
+
                     if ($skipline && ($total == 1)) {
                         continue;
                     }
 
-                    $requestPath = $line[0];
-                    $targetPath = $line[1];
+                    $row = $this->_prepareRow($line);
+Zend_Debug::dump($row);
+                    foreach ($stores as $store) {
+                        $rewrite = Mage::getModel('core/url_rewrite');
 
-                    $rewrite = Mage::getModel('core/url_rewrite');
+                        $rewrite->setIdPath($row->getIdPath())
+                                ->setDescription('URL rewrite import')
+                                ->setIsSystem(0)
+                                ->setTargetPath($row->getTargetPath())
+                                ->setOptions($row->getOptions())
+                                ->setRequestPath($row->getRequestPath())
+                                ->setStoreId($store);
 
-                    $rewrite->setIdPath(uniqid())
-                            ->setTargetPath($targetPath)
-                            ->setOptions('RP')
-                            ->setDescription('Inchoo_UrlRewriteImporter')
-                            ->setRequestPath($requestPath)
-                            ->setIsSystem(0)
-                            ->setStoreId(0);
+                        try {
+                            $rewrite->save();
+                            $totalSuccess++;
+                        } catch (Exception $e) {
+                            $logException = $e->getMessage();
+                            Mage::logException($e);
+                        }
 
-                    try {
-                        $rewrite->save();
-                        $totalSuccess++;
-                    } catch (Exception $e) {
-                        $logException = $e->getMessage();
-                        Mage::logException($e);
+                        $this->_currentId++;
                     }
                 }
                 fclose($fp);
