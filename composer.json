@@ -1,0 +1,15 @@
+{
+    "name"          : "vbuck/urlrewriteimporter",
+    "type"          : "magento-module",
+    "homepage"      : "http://www.rickbuczynski.com/",
+    "description"   : "A fork of ajzele/Inchoo_UrlRewriteImporter for enhanced functionality.",
+    "authors": [
+        {
+            "name"  : "Rick Buczynski",
+            "email" : "me@rickbuczynski.com"
+        }
+    ],
+    "require": {
+        "magento-hackathon/magento-composer-installer": "*"
+    }
+}
