@@ -155,41 +155,60 @@ class Inchoo_UrlRewriteImporter_Adminhtml_Inchoo_UrlRewriteImporter_ImportContro
 
             $this->_setColumns($columns);
 
-            $total = 0;
-            $totalSuccess = 0;
-            $logException = '';
+            $total          = 0;
+            $totalSuccess   = 0;
+            $totalToMatch   = 0;
+            $logException   = '';
+            $failedLines    = array();
 
             if (($fp = fopen($filename, 'r'))) {
                 while (($line = fgetcsv($fp, $length, $delimiter, $enclosure, $escape))) {
-
+                    $lineError = false;
                     $total++;
 
                     if ($skipline && ($total == 1)) {
                         continue;
                     }
 
-                    $row = $this->_prepareRow($line);
+                    $row        = $this->_prepareRow($line);
+                    $_stores    = $stores;
 
-                    foreach ($stores as $store) {
-                        $rewrite = Mage::getModel('core/url_rewrite');
+                    // Allow row-based store ID to be used if not user-specified
+                    if (is_numeric($row->getStoreId()) && !$this->getRequest()->getParam('store_id')) {
+                        $_stores = array($row->getStoreId());
+                    }
 
-                        $rewrite->setIdPath($row->getIdPath())
-                                ->setDescription('URL rewrite import')
-                                ->setIsSystem(0)
-                                ->setTargetPath($row->getTargetPath())
-                                ->setOptions($row->getOptions())
-                                ->setRequestPath($row->getRequestPath())
-                                ->setStoreId($store);
+                    try {
+                        if (!$row->getRequestPath() || !$row->getTargetPath()) {
+                            throw new Exception($this->__('A record must specify a request and target path.'));
+                        }
+                        
+                        foreach ($stores as $store) {
+                            $rewrite = Mage::getModel('core/url_rewrite');
 
-                        try {
+                            $rewrite->setIdPath($row->getIdPath())
+                                    ->setDescription('URL rewrite import')
+                                    ->setIsSystem(0)
+                                    ->setTargetPath($row->getTargetPath())
+                                    ->setOptions($row->getOptions())
+                                    ->setRequestPath($row->getRequestPath())
+                                    ->setStoreId($store);
+
                             $rewrite->save();
-                            $totalSuccess++;
+
                             $this->_currentId++;
-                        } catch (Exception $e) {
-                            $logException = $e->getMessage();
-                            Mage::logException($e);
                         }
 
+                    } catch (Exception $e) {
+                        $logException           = $e->getMessage();
+                        $lineError              = true;
+                        $failedLines[$total]    = true;
+
+                        Mage::logException($e);
+                    }
+
+                    if (!$lineError) {
+                        $totalSuccess++;
                     }
                 }
                 fclose($fp);
@@ -205,16 +224,17 @@ class Inchoo_UrlRewriteImporter_Adminhtml_Inchoo_UrlRewriteImporter_ImportContro
                     $this->_redirectReferer();
                     return;
                 } else {
-                    $this->_getSession()->addNotice(sprintf('%s URL rewrites have been imported.', $total - $totalSuccess));
+                    $this->_getSession()->addNotice(sprintf('%s URL rewrites have been imported.', $totalSuccess));
                     if (!empty($logException)) {
                         $this->_getSession()->addError(sprintf('Last logged exception: %s', $logException));
+                        $this->_getSession()->addError(sprintf('Failed to import rows: %s', implode(', ', array_keys($failedLines))));
                     }
                 }
             }
         }
 
         $this->_redirect('*/urlrewrite/index');
-        
+
         return;
     }
 
