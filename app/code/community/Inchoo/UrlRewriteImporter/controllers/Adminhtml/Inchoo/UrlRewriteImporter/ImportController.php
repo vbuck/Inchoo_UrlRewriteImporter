@@ -63,24 +63,38 @@ class Inchoo_UrlRewriteImporter_Adminhtml_Inchoo_UrlRewriteImporter_ImportContro
      */
     protected function _prepareRow(array $row)
     {
+        // User-supplied id_path, options will override CSV values
         $idPath     = $this->getRequest()->getParam('id_path_pattern');
         $options    = $this->getRequest()->getParam('options');
         $newRow     = array();
+        // Merge column map with default placeholders
+        $columns    = array_merge(
+            array(
+                'store_id'      => -1,
+                'id_path'       => -1,
+                'request_path'  => -1,
+                'target_path'   => -1,
+                'options'       => -1,
+            ),
+            $this->_columns
+        );
 
-        foreach ($this->_columns as $field => $index) {
+        foreach ($columns as $field => $index) {
             $value = isset($row[$index]) ? $row[$index] : null;
 
-            if ($idPath || $field == 'id_path' && is_null($value)) {
-                $value = $idPath ? $idPath : 'custom/{time}/{id}';
-            }
-
             if ($field == 'id_path') {
+                if ($idPath || is_null($value)) {
+                    $value = $idPath ? $idPath : 'custom/{time}/{id}';
+                }
+
                 $value = str_replace('{time}', $this->_timestamp, $value);
                 $value = str_replace('{id}', $this->_currentId, $value);
             }
 
-            if ($options || $field == 'options' && is_null($value)) {
-                $value = $options;
+            if ($field == 'options') {
+                if ($options || is_null($value)) {
+                    $value = $options ? $options : '';
+                }
             }
 
             $newRow[$field] = $value;
@@ -120,7 +134,7 @@ class Inchoo_UrlRewriteImporter_Adminhtml_Inchoo_UrlRewriteImporter_ImportContro
                 return;
             }
 
-            $this->_currentId      = 1;
+            $this->_currentId   = 1;
             $this->_timestamp   = time();
 
             $length     = $this->getRequest()->getParam('length', 0);
@@ -128,7 +142,7 @@ class Inchoo_UrlRewriteImporter_Adminhtml_Inchoo_UrlRewriteImporter_ImportContro
             $enclosure  = $this->getRequest()->getParam('enclosure', '"');
             $escape     = $this->getRequest()->getParam('escape', '\\');
             $skipline   = $this->getRequest()->getParam('skipline', false);
-            $stores     = explode(',', ( $this->getRequest()->getParam('store_id') ));
+            $stores     = array_filter( explode(',', ( $this->getRequest()->getParam('store_id') )) );
             $columns    = explode(',', ( $this->getRequest()->getParam('fields') ));
 
             if (empty($stores)) {
@@ -155,7 +169,7 @@ class Inchoo_UrlRewriteImporter_Adminhtml_Inchoo_UrlRewriteImporter_ImportContro
                     }
 
                     $row = $this->_prepareRow($line);
-Zend_Debug::dump($row);
+
                     foreach ($stores as $store) {
                         $rewrite = Mage::getModel('core/url_rewrite');
 
@@ -170,12 +184,12 @@ Zend_Debug::dump($row);
                         try {
                             $rewrite->save();
                             $totalSuccess++;
+                            $this->_currentId++;
                         } catch (Exception $e) {
                             $logException = $e->getMessage();
                             Mage::logException($e);
                         }
 
-                        $this->_currentId++;
                     }
                 }
                 fclose($fp);
@@ -198,7 +212,9 @@ Zend_Debug::dump($row);
                 }
             }
         }
+
         $this->_redirect('*/urlrewrite/index');
+        
         return;
     }
 

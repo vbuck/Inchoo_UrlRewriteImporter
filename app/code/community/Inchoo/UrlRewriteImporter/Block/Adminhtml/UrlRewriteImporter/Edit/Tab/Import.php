@@ -50,7 +50,7 @@ class Inchoo_UrlRewriteImporter_Block_Adminhtml_UrlRewriteImporter_Edit_Tab_Impo
         $csvOptionsFieldset->addField('escape', 'text', array(
             'name' => 'escape',
             'label' => 'Escape',
-            'value' => '\\\\',
+            'value' => '\\',
             'after_element_html' => '<small>fgetcsv $escape param, defaults to: \\\</small>',
             'class' => 'required-entry',
             'required' => true,
@@ -67,7 +67,7 @@ class Inchoo_UrlRewriteImporter_Block_Adminhtml_UrlRewriteImporter_Edit_Tab_Impo
             'legend' => Mage::helper('customer')->__('CSV File')
         ));
 
-        $->addField('file', 'file', array(
+        $csvFileFieldset->addField('file', 'file', array(
             'name' => 'file',
             'label' => 'File',
             'class' => 'required-entry',
